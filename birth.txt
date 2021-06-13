@@ -1,0 +1,4 @@
+no	name	birthday
+1	Lee	0717
+2	Kim	0205
+3	Cho	0910
