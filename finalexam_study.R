@@ -3,7 +3,7 @@
 
 #패키지 모음
 #propagate -- fitDistr()은 적합한 분포를 찾게해줌
-
+library(ggplot2)
 
 #어린이 4리터 이하 물
 x=seq(0,16,length=100)
@@ -295,6 +295,27 @@ boxplot(tyre$Mileage~tyre$Brands,
 tyres.aov = aov(Mileage~Brands, tyre)
 summary(tyres.aov)
 TukeyHSD(tyres.aov)
+#
+drug = read.csv("drug.csv")
+drug
+str(drug)
+drug$fatigue = ordered(drug$fatigue, levels=c("low","med","high"))
+boxplot(dose~fatigue, data=drug,
+        xlab="fatigue",ylab="dose",
+        col=c("blue","red","yellow"))
+drug.aov = aov(dose~fatigue, data=drug)
+summary(drug.aov)
+plot(drug.aov)
+
+drug_aov2 = update(drug.aov, subset(drug, patientID!=20))
+summary(drug_aov2)
+
+drug_aov3 = aov(dose~fatigue+gender, data=drug)
+summary(drug_aov3)
+
+#두 anova 모델 비교
+#p-value가 0.05보다 크므로,차이가 없기에, 더 간단한 모델을 선택
+anova(drug.aov, drug_aov3)
 
 #--------------------------------------------------------------------------
 #상관분석
@@ -323,6 +344,376 @@ library(corrplot)
 corrplot(car_cor)
 corrplot(car_cor, method="color",#circle, square,ellipse,number,shade,color,pie
          type="lower",
-         order="hclust",#AOE, hclust, FPC, alphabet
+         order="FPC",#AOE, hclust, FPC, alphabet
          addCoef.col = "black", 
          tl.col = "black", tl.srt = 45, diag=F)
+
+#-----------------------------------------------------------------------------
+#회귀분석
+#-----------------------------------------------------------------------------
+data(cars)
+cor.test(cars$speed, cars$dist, method = "pearson")
+
+attach(cars)
+plot(speed,dist)
+cor.test(speed,dist)
+
+#선형회귀모델 생성
+m = lm(dist~speed, cars)
+#dist = -17.579 + 3.932*speed + e
+m
+summary(m)
+plot(speed, dist)
+abline(coef(m))
+#선형회귀모델-예측
+predict(m, newdata=data.frame(speed=3), interval = "confidence")
+#-5.781869 = -17.599095+3.932*3
+
+#예측 및 검정
+set.seed(100)
+#row indices for training data
+trainingRowIndex = sample(1:nrow(cars), 0.8*nrow(cars))
+#model training data
+trainingData = cars[trainingRowIndex,]
+trainingData
+testData = cars[-trainingRowIndex,]
+testData
+
+lmMod = lm(dist~speed, data=trainingData)
+lmMod
+summary(lmMod)
+
+distPred = predict(lmMod, testData)
+distPred
+#검정
+actuals_preds = data.frame(cbind(actuals = testData$dist,
+                                 predict=distPred))
+head(actuals_preds)
+correlation_accuracy = cor(actuals_preds)
+correlation_accuracy
+
+#키랑 몸무게 (몸무게로부터 키 예측)
+reg = read.csv("regression.csv")
+head(reg)
+tail(reg)
+cor(reg$height, reg$weight)
+
+r=lm(reg$height~reg$weight)
+
+plot(reg$weight, reg$height)
+abline(coef(r))
+summary(r)
+#height = 70.9481 + 1.5218*weight + e
+plot(r)
+
+#다중선형회귀(독립변수가 2개 이상)
+m=lm(Sepal.Length~Sepal.Width+Petal.Length+Petal.Width, data=iris)
+summary(m)
+
+iris$Species
+m=lm(Sepal.Length~., data=iris)
+summary(m)
+model.matrix(m)[c(1,51,101),]
+anova(m)
+
+with(iris, plot(Sepal.Width, Sepal.Length, cex=.7, pch=as.numeric(Species)))
+(m=lm(Sepal.Length~Sepal.Width + Species, data=iris))
+coef(m)
+
+abline(2.25,0.80, lty=1)
+abline(2.25+1.45, 0.80, lty=2)
+abline(2.25+1.94, 0.80, lty=3)
+
+#다중선형회귀 상호작용
+with(iris, plot(Species, Petal.Length, xlab="Species", ylab="Petal.Length"))
+m2 = lm(Petal.Length~Petal.Width*Species, data=iris)
+anova(m2)
+summary(m2)
+#Setosa 일때, 1.32+Petal.Width*0.54
+#VersiColor 일때, 1.32+0.45+Petal.Width*0.54 + Petal.Width*1.32
+#Virginica 일때, 1.32+2.91+Petal.Width*0.54 + Petal.Width*0.10
+
+library(interactions)
+interact_plot(m2,pred = "Petal.Width", modx="Species",plot.points = T)
+#1.A,B,C와 그 상호작용을 모두 표현할 경우
+#A+B+C+A:B+A:C+B:C+A:B:C
+#A*B*C
+
+x=1:1000
+y=x^2+3*x+5+rnorm(1000)
+y
+lm(y~I(x^2)+x)
+
+x=101:200
+y=exp(3*x+rnorm(100))
+lm(log(y)~x)
+
+x=1:1000
+y=log(x)+rnorm(1000)
+lm(y~log(x))
+
+#선형회귀 데이터 변환
+time=c(1,5,15,30,60,120,240,480,720,1440,2880,5760,10080)
+prop=c(0.84,0.71,0.61,0.56,0.54,0.47,0.45,0.38,0.36,0.26,0.20,0.16,0.08)
+data=as.data.frame(cbind(time,prop))
+data
+m=lm(prop~time, data=data)
+summary(m)
+plot(data$time,data$prop)
+abline(coef(m))
+plot(m)
+#곡선형을 띌땐 로그를 취하라
+m2 = lm(prop~log(time), data=data)
+summary(m2)
+plot(m2)
+plot(log(data$time),prop)
+abline(coef(m2))
+
+#몸무게와 뇌의 무게간 관계분석
+library(MASS)
+data(mammals)
+head(mammals)
+plot(mammals$body,mammals$brain)
+
+m1 = lm(brain~body, data = mammals)
+summary(m1)
+plot(m1)
+
+plot(mammals$body, mammals$brain, log="xy")
+
+m2 = lm(log(brain)~log(body), data = mammals)
+summary(m2)
+par(mfrow=c(2,2), mar=c(2,3,1.5,0.5))
+plot(m2)
+
+#잔차비교
+plot(density(m1$resid),main="m1")
+plot(density(m2$resid),main="m2")
+
+#2.Stepwise Algorithm
+data("attitude")
+m = lm(rating~., data=attitude)
+summary(m)
+
+#후진제거법
+library(mlbench)
+m2 = step(m, direction="backward")
+m2
+summary(m2)
+
+#단계선택법
+data("BostonHousing")
+m=lm(medv~., data=BostonHousing)
+m2=step(m, direction="both")
+summary(m)
+summary(m2)
+
+library(leaps)
+m=regsubsets(medv~., data=BostonHousing)
+summary(m)
+
+plot(m, scale="adjr2")
+plot(m, scale="bic")
+(bestpic = summary(m)$bic)
+(min.bic = which.min(bestpic))
+coef(m,min.bic)
+
+#par(mfrow=c(1,1), mar=c(2,3,1.5,0.5))
+
+#3.Dealing with Outliers
+best_jump = c(5.30, 5.55, 5.47, 5.45, 5.07, 5.32, 6.15, 4.70, 5.22,
+              5.77, 5.12, 5.77, 6.22, 5.82, 5.15, 4.92, 5.20, 5.42)
+avg_takeoff = c(.09, .17, .19, .24, .16, .22, .09, .12, .09, .09, 
+                .13, .16, .03, .50, .13, .04, .07, .04)
+plot(avg_takeoff, best_jump)
+jump_model = lm(best_jump~avg_takeoff)
+abline(reg = jump_model, col="red")
+summary(jump_model)
+plot(jump_model)
+
+#이상치 제거 실행!
+best_jump2 = best_jump[-14]
+avg_takeoff2 = avg_takeoff[-14]
+jump_model2 = lm(best_jump2~avg_takeoff2)
+plot(best_jump2~avg_takeoff2)
+abline(jump_model2, col="red")
+summary(jump_model2)
+plot(jump_model2)
+
+#오렌지 이상치
+data("Orange")
+Orange
+plot(Orange$circumference ~ Orange$age)
+#이상치 주입
+Orange = rbind(Orange,
+               data.frame(Tree=as.factor(c(6,6,6)),
+                          age=c(118,484,664),
+                          circumference=c(177,50,30)))
+with(Orange,
+     plot(Tree, circumference, xlab="tree",
+          ylab="circumference"))
+with(Orange, interaction.plot(age, Tree, circumference))
+m = lm(circumference~age+I(age^2), data=Orange)
+summary(m)
+plot(m)
+library(car)
+#Bonferroni p value < 0.05
+outlierTest(m)
+
+data("airquality")
+str(airquality)
+head(airquality)
+col1 = mapply(anyNA, airquality)
+col1
+for(i in 1:nrow(airquality)){
+  if(is.na(airquality[i,"Ozone"])){
+    airquality[i,"Ozone"] = mean(airquality[which(airquality[,"Month"]
+                                                  ==airquality[i,"Month"]),
+                                            "Ozone"],na.rm=T)
+  }
+}
+
+for(i in 1:nrow(airquality)){
+  if(is.na(airquality[i,"Solar.R"])){
+    airquality[i,"Solar.R"] = mean(airquality[which(airquality[,"Month"]
+                                                  ==airquality[i,"Month"]),
+                                            "Solar.R"],na.rm=T)
+  }
+}
+head(airquality)
+normalize = function(x){
+  return((x-min(x))/(max(x)-min(x)))
+}
+airquality = normalize(airquality)
+str(airquality)
+head(airquality)
+library(corrplot)
+airquality_cor = cor(airquality)
+corrplot(airquality_cor, method = "color",
+         type="lower",addCoef.col = "black")
+Y = airquality[,"Ozone"]
+X = airquality[,"Solar.R"]
+
+model1 = lm(Y~X)
+model1
+summary(model1)
+plot(Y~X)
+abline(model1, col="blue", lwd=2)
+
+model2 = lm(Y~airquality$Wind)
+summary(model2)
+plot(Y~airquality$Wind)
+abline(model2, col="blue", lwd=3)
+
+airquality$forecast = predict(model1)
+ggplot(data=airquality, aes(x=Ozone, y=forecast))+
+  geom_point()+
+  geom_smooth(method = lm)+
+  labs(title="airquality linear regression model")
+
+model3 = lm(airquality$Ozone~., data=airquality)
+summary(model3)
+m3=step(model3, direction="both")
+summary(m3)
+
+
+#-------------------------------------------------------------------------
+#분류
+#-------------------------------------------------------------------------
+#의사결정나무
+library(rpart)
+library(rpart.plot)
+m=rpart(Species~., data=iris)
+m
+prp(m, type=5, extra=2, digits=3)
+table(iris$Species, predict(m, newdata = iris, type="class"))
+
+#타이타닉
+titanic = read.csv("titanic_clean.csv")
+str(titanic)
+#data cleansing
+titanic$pclass = as.factor(titanic$pclass)
+titanic$survived = factor(titanic$survived, levels=c(0,1))
+str(titanic)
+
+#understanding data: by plot
+ggplot(titanic, aes(x=factor(pclass), fill=factor(sex)))+
+  geom_bar(position="dodge")
+ggplot(titanic, aes(x=factor(pclass), fill=factor(sex)))+
+  geom_bar(position="dodge")+
+  facet_grid(".~survived")
+
+posn.j=position_jitter(0.3,0)
+ggplot(titanic, aes(x=factor(pclass), y=age, col=factor(sex)))+
+  geom_jitter(size=3, alpha=0.5, position=posn.j)+
+  facet_grid(".~survived")
+mosaicplot(survived~pclass+sex, main="pclass and sex",data = titanic,
+           color=T)
+
+library(Hmisc)
+summary(survived~pclass + sex+ age + sibsp+parch+fare+embarked,
+        data = titanic, method = "reverse")
+
+library(rpart)
+library(rpart.plot)
+
+set.seed(100)
+trainingRowIndex = sample(1:nrow(titanic), 0.8*nrow(titanic))
+trainingData=titanic[trainingRowIndex,]
+testData = titanic[-trainingRowIndex,]
+
+dt1 = rpart(survived~pclass+sex+age+sibsp+parch+fare+embarked,
+            data=trainingData)
+prp(dt1, type=0, extra=2, digits=3)
+
+#prediction
+prediction = predict(dt1, testData, type="class")
+
+#check accuracy
+table(ifelse(testData$survived==prediction, "yes","no"))
+
+
+
+#9주차 homework 독립성분석
+library(MASS)
+str(survey)
+#손글씨를 어느 손으로 쓰는지와 박수를 칠 때 어느 손이 위로 가는지는 모두
+#명목형 번수이므로 카이제곱검정을 이용해 독립성 여부를 판단한다.
+#쓰는 손과 박수 별로 빈도수
+WHnd_Clap = xtabs(~W.Hnd+Clap, data=survey)
+WHnd_Clap
+#표본의 수가 작으므로 카이제곱검정 보다는 피셔검정으로 재검정한다.
+chisq.test(WHnd_Clap)
+#p-value가 0.05보다 작으므로, 두 변수는 독립하지 않다(관계가 있다.)
+fisher.test(WHnd_Clap)
+
+ExerSmoke = xtabs(~Exer+Smoke, data=survey)
+ExerSmoke
+chisq.test(ExerSmoke)
+fisher.test(ExerSmoke)
+
+#10주차 homework 독립성 분석
+dat = data(iris)
+dat = iris
+dat$size = ifelse(dat$Sepal.Length<median(dat$Sepal.Length),"small","big")
+sizeSpecies = xtabs(~size+Species, data=dat)
+sizeSpecies
+#p-value가 0.05보다 작으므로, 독립이 아니다
+chisq.test(sizeSpecies)
+
+library(dplyr)
+group = c(rep("Woman",9),rep("Man",9))
+weight=c(38.9,61.2,73.3,21.8,63.4,64.6, 48.4, 48.8, 48.5,
+         67.8, 60.0, 63.4, 76.0, 89.4, 73.3, 67.3, 61.3, 62.4)
+data = as.data.frame(cbind(group,weight))
+data$weight = as.double(data$weight)
+womanWeight = data %>% filter(group=="Woman")
+manWeight = data %>% filter(group=="Man")
+
+#두 성별 모두 몸무게가 정규분포임
+shapiro.test(womanWeight$weight)
+shapiro.test(manWeight$weight)
+
+#t-test를 통해 평균은 다르다고 할 수 있는지 검정
+t.test(manWeight$weight, mu=mean(womanWeight$weight), alternative = "two.sided")
+#p-value가 0.05 보다 작으므로 평균은 다르다고 할 수 있다.
